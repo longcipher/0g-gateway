@@ -1,0 +1,22 @@
+{
+	"name": "0g-gateway",
+	"scripts": {
+		"dev": "bun run --hot src/index.ts",
+		"prod": "bun run src/index.ts",
+		"format": "biome format --write"
+	},
+	"dependencies": {
+		"@0glabs/0g-serving-broker": "^2.0.0",
+		"@hono/node-server": "^1.13.8",
+		"dotenv": "^16.4.7",
+		"ethers": "^6.13.5",
+		"hono": "^4.7.5",
+		"openai": "^4.89.0",
+		"pino": "^9.6.0",
+		"pino-pretty": "^13.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/bun": "1.2.5"
+	}
+}
