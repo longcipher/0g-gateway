@@ -2,8 +2,8 @@ import { ethers } from "ethers";
 import {
 	createZGComputeNetworkBroker,
 	ZGComputeNetworkBroker,
-	ServiceStructOutput,
 } from "@0glabs/0g-serving-broker";
+import { ServiceStructOutput } from "@0glabs/0g-serving-broker/lib.commonjs/inference/contract";
 import { logger } from "./logger";
 
 export interface ZeroGOpenAIGatewayConfig {
