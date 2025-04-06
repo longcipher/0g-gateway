@@ -16,7 +16,7 @@ let gateway;
 (async () => {
   try {
     logger.info("Initializing 0G OpenAI Gateway...");
-    
+
     gateway = await ZeroGOpenAIGateway.initialize({
       privateKey: config.privateKey,
       rpcUrl: config.rpcUrl,
@@ -24,21 +24,21 @@ let gateway;
       providerAddress: config.providerAddress,
       maxRetries: config.maxRetries,
     });
-    
+
     logger.info("0G OpenAI Gateway initialized successfully");
-    
+
     // Set up routes
     app.route("/v1/chat", chatCompletionsRouter(gateway));
     app.route("/v1", modelsRouter(gateway));
-    
+
     // Health check endpoint
     app.get("/health", (c) => c.json({ status: "ok" }));
-    
+
     // Log route information
     app.routes.forEach((route) => {
       logger.info(`Route: ${route.method} ${route.path}`);
     });
-    
+
     logger.info("All routes registered successfully");
   } catch (error) {
     logger.error({ error }, "Failed to initialize server");
@@ -50,5 +50,5 @@ let gateway;
 export default {
   port: config.port,
   hostname: "0.0.0.0", // Listen on all available network interfaces
-  fetch: app.fetch.bind(app)
+  fetch: app.fetch.bind(app),
 };

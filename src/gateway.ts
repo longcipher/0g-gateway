@@ -20,7 +20,6 @@ export class ZeroGOpenAIGateway {
   private maxRetries: number;
   private endpoint: string;
   private model: string;
-  private serviceCache: Map<string, ServiceStructOutput> = new Map();
 
   private constructor(
     broker: ZGComputeNetworkBroker,
