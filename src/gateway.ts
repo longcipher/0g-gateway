@@ -32,6 +32,8 @@ export class ZeroGOpenAIGateway {
     this.broker = broker;
     this.providerAddress = providerAddress;
     this.maxRetries = maxRetries;
+    this.endpoint = endpoint;
+    this.model = model;
   }
 
   /**
@@ -176,7 +178,7 @@ export class ZeroGOpenAIGateway {
           // Add a small delay between retries
           await new Promise((resolve) => setTimeout(resolve, 1000));
         } catch (error) {
-          logger.error(`Error on attempt ${retryCount + 1}:`, error);
+          logger.error(`Error on attempt ${retryCount + 1}: ${error}`);
           retryCount++;
           await new Promise((resolve) => setTimeout(resolve, 1000));
         }
@@ -266,6 +268,7 @@ async function makeInferenceRequest(
   content: string,
   model: string,
 ): Promise<InferenceResult> {
+  logger.info(`Making inference request to ${endpoint}`);
   const response = await fetch(`${endpoint}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
