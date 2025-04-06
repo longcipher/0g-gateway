@@ -10,14 +10,28 @@ export interface ZeroGOpenAIGatewayConfig {
   privateKey: string;
   rpcUrl: string;
   initialBalance: number;
+  providerAddress: string;
+  maxRetries: number;
 }
 
 export class ZeroGOpenAIGateway {
   private broker: ZGComputeNetworkBroker;
+  private providerAddress: string;
+  private maxRetries: number;
+  private endpoint: string;
+  private model: string;
   private serviceCache: Map<string, ServiceStructOutput> = new Map();
 
-  private constructor(broker: ZGComputeNetworkBroker) {
+  private constructor(
+    broker: ZGComputeNetworkBroker,
+    providerAddress: string,
+    maxRetries: number,
+    endpoint: string,
+    model: string,
+  ) {
     this.broker = broker;
+    this.providerAddress = providerAddress;
+    this.maxRetries = maxRetries;
   }
 
   /**
@@ -28,80 +42,55 @@ export class ZeroGOpenAIGateway {
   ): Promise<ZeroGOpenAIGateway> {
     const log = logger.child({ method: "initialize" });
 
+    // Initialize provider and wallet
+    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+    const wallet = new ethers.Wallet(config.privateKey, provider);
+    // Initialize broker
+    const broker = await createZGComputeNetworkBroker(wallet);
+    logger.info("Inference Broker initialized");
+
+    // Setup ledger
     try {
-      log.info("Initializing provider...");
-      const provider = new ethers.JsonRpcProvider(config.rpcUrl);
-
-      log.info("Creating wallet...");
-      const wallet = new ethers.Wallet(config.privateKey, provider);
-
-      log.info("Initializing broker...");
-      const broker = await createZGComputeNetworkBroker(wallet);
-
-      log.info("Setting up ledger...");
-      try {
-        await broker.ledger.addLedger(config.initialBalance);
-      } catch (error) {
-        log.warn({ error }, "Ledger may already exist, continuing...");
-      }
-
-      log.info("Gateway initialized successfully");
-      return new ZeroGOpenAIGateway(broker);
+      const existingBalance = await broker.ledger.getLedger();
+      logger.info(`Using existing ledger with balance: ${existingBalance}`);
     } catch (error) {
-      log.error({ error }, "Failed to initialize gateway");
-      throw error;
+      logger.info("No existing ledger found. Creating new ledger...");
+      await broker.ledger.addLedger(config.initialBalance);
+      logger.info(
+        "New account created and funded with initial balance: ${config.initialBalance}",
+      );
     }
+
+    // Get service metadata
+    logger.info("Getting service metadata...");
+    const { endpoint, model } = await broker.inference.getServiceMetadata(
+      config.providerAddress,
+    );
+    logger.info(`Endpoint: ${endpoint}, Model: ${model}`);
+
+    log.info("Gateway initialized successfully");
+    return new ZeroGOpenAIGateway(
+      broker,
+      config.providerAddress,
+      config.maxRetries,
+      endpoint,
+      model,
+    );
   }
 
   /**
    * Get available models from the 0G network
    */
-  public async getModels(): Promise<Array<{ id: string; provider: string }>> {
-    const log = logger.child({ method: "getModels" });
-
-    try {
-      log.info("Fetching available services...");
-      const services = await this.broker.inference.listService();
-
-      const models: Array<{ id: string; provider: string }> = [];
-
-      for (const service of services) {
-        try {
-          // Cache the service for later use
-          this.serviceCache.set(
-            `${service.provider}:${service.model}`,
-            service,
-          );
-
-          models.push({
-            id: service.model,
-            provider: service.provider,
-          });
-
-          log.info(
-            { provider: service.provider, model: service.model },
-            "Added model",
-          );
-        } catch (error) {
-          log.warn(
-            { error, provider: service.provider },
-            "Failed to process service",
-          );
-        }
-      }
-
-      return models;
-    } catch (error) {
-      log.error({ error }, "Failed to get models");
-      throw error;
-    }
+  public getModels(): Array<{ id: string; provider: string }> {
+    const models = [{ id: this.model, provider: this.providerAddress }];
+    return models;
   }
 
   /**
    * Create a chat completion using the 0G network
    */
   public async createChatCompletion(
-    model: string,
+    _model: string,
     messages: Array<{ role: string; content: string }>,
   ): Promise<{
     id: string;
@@ -119,126 +108,92 @@ export class ZeroGOpenAIGateway {
       total_tokens: number;
     };
   }> {
-    const log = logger.child({ method: "createChatCompletion", model });
+    const log = logger.child({ method: "createChatCompletion" });
 
     try {
-      log.info({ model }, "Finding provider for model...");
+      // Make inference requests with retry logic
+      let retryCount = 0;
 
-      // Find the provider for the requested model
-      let providerAddress: string | null = null;
-      let serviceInfo: ServiceStructOutput | null = null;
-
-      // First, check if we have the model in our cache
-      for (const [key, service] of this.serviceCache.entries()) {
-        if (service.model === model) {
-          providerAddress = service.provider;
-          serviceInfo = service;
-          break;
-        }
-      }
-
-      // If we don't have the model in our cache, fetch all services and check
-      if (!providerAddress || !serviceInfo) {
-        log.info("Model not found in cache, fetching all services...");
-        await this.getModels();
-
-        for (const [key, service] of this.serviceCache.entries()) {
-          if (service.model === model) {
-            providerAddress = service.provider;
-            serviceInfo = service;
-            break;
-          }
-        }
-      }
-
-      if (!providerAddress || !serviceInfo) {
-        throw new Error(`Model ${model} not found`);
-      }
-
-      // Get service metadata
-      log.info({ providerAddress }, "Getting service metadata...");
-      const { endpoint, model: serviceModel } =
-        await this.broker.inference.getServiceMetadata(providerAddress);
-
-      // Prepare the content from messages
       const content = messages
         .map((msg) => `${msg.role}: ${msg.content}`)
         .join("\n");
 
-      log.info({ providerAddress }, "Preparing request headers...");
-      const headers = await this.broker.inference.getRequestHeaders(
-        providerAddress,
-        content,
-      );
+      let result: InferenceResult | undefined;
+      while (retryCount < this.maxRetries) {
+        try {
+          // Get fresh headers for each attempt
+          const currentHeaders = await getNewHeaders(
+            this.broker,
+            this.providerAddress,
+            content,
+          );
+          logger.info("Preparing to call makeInferenceRequest...");
+          const startTimeMs = Date.now();
+          const startDate = new Date(startTimeMs);
+          logger.info(
+            `Request start time: ${startDate.toISOString()} (Timestamp: ${startTimeMs})`,
+          );
+          result = await makeInferenceRequest(
+            this.broker,
+            this.endpoint,
+            currentHeaders,
+            content,
+            this.model,
+          );
+          const endTimeMs = Date.now();
+          const endDate = new Date(endTimeMs);
+          const durationMs = endTimeMs - startTimeMs;
+          logger.info(
+            `Request end time: ${endDate.toISOString()} (Timestamp: ${endTimeMs})`,
+          );
+          logger.info(`Request successful, duration: ${durationMs} ms`);
+          logger.info(`Attempt ${retryCount + 1} result:`, result);
 
-      // Import OpenAI dynamically to avoid circular dependencies
-      const { default: OpenAI } = await import("openai");
-
-      log.info("Sending request to provider...");
-      const openai = new OpenAI({
-        baseURL: endpoint,
-        apiKey: "",
-      });
-
-      let completion;
-      try {
-        completion = await openai.chat.completions.create(
-          {
-            messages,
-            model: serviceModel,
-          },
-          {
-            headers: {
-              ...headers,
-            },
-          },
-        );
-      } catch (error: any) {
-        log.warn({ error }, "Error during completion request");
-
-        // 检查是否需要结算费用
-        if (error.error && typeof error.error === "string") {
-          const regex = /(?<=expected\s)([0-9.]+)/;
-          const match = error.error.match(regex);
-
-          if (match) {
-            const feeToPay: number = Number(match[1]);
-            log.info({ feeToPay }, "Need to settle fee");
-
-            try {
-              await this.broker.inference.settleFee(providerAddress, feeToPay);
-              log.info("Fee settled successfully");
-
-              // 重试请求
-              completion = await openai.chat.completions.create(
-                {
-                  messages,
-                  model: serviceModel,
-                },
-                {
-                  headers: {
-                    ...headers,
-                  },
-                },
-              );
-            } catch (settleError) {
-              log.error({ settleError }, "Failed to settle fee");
-              throw settleError;
-            }
-          } else {
-            throw error;
+          // If we have a valid response, break the loop
+          if (result?.choices?.[0]?.message?.content) {
+            logger.info("Success! Message:", result.choices[0].message.content);
+            break;
           }
-        } else {
-          throw error;
+
+          // Handle fee settlement error
+          if (result.error?.includes("settleFee")) {
+            const feeMatch = result.error.match(/expected ([\d.]+) A0GI/);
+            if (feeMatch) {
+              const expectedFee = Number(feeMatch[1]);
+              logger.info(`Settling fee: ${expectedFee}`);
+              await this.broker.inference.settleFee(
+                this.providerAddress,
+                expectedFee,
+              );
+              logger.info("Fee settled successfully");
+            }
+          }
+
+          // If we get here, either there was an error or no valid response
+          logger.info(`Attempt ${retryCount + 1} failed, retrying...`);
+          retryCount++;
+
+          // Add a small delay between retries
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        } catch (error) {
+          logger.error(`Error on attempt ${retryCount + 1}:`, error);
+          retryCount++;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
 
-      if (!completion || !completion.choices) {
+      if (!result?.choices?.[0]?.message?.content) {
+        logger.info(
+          `Failed to get valid response after ${this.maxRetries} attempts`,
+        );
+      }
+
+      if (!result || !result.choices) {
         throw new Error("No valid completion received");
       }
 
-      const receivedContent = completion.choices[0].message.content;
-      const chatID = completion.id;
+      const receivedContent = result?.choices[0]?.message?.content;
+      const chatID = result?.id;
 
       if (!receivedContent) {
         throw new Error("No content received.");
@@ -246,7 +201,7 @@ export class ZeroGOpenAIGateway {
 
       log.info({ chatID }, "Processing response...");
       const isValid = await this.broker.inference.processResponse(
-        providerAddress,
+        this.providerAddress,
         receivedContent,
         chatID,
       );
@@ -260,7 +215,7 @@ export class ZeroGOpenAIGateway {
         id: chatID,
         object: "chat.completion",
         created: Math.floor(Date.now() / 1000),
-        model,
+        model: this.model,
         choices: [
           {
             index: 0,
@@ -282,4 +237,54 @@ export class ZeroGOpenAIGateway {
       throw error;
     }
   }
+}
+
+// Define interface for inference result
+interface InferenceResult {
+  choices?: Array<{
+    message?: {
+      content: string;
+    };
+  }>;
+  error?: string;
+  id?: string;
+}
+
+/**
+ * Makes an inference request to the specified endpoint
+ * @param broker - The ZG Compute Broker instance
+ * @param endpoint - API endpoint URL
+ * @param headers - Request headers
+ * @param content - Message content
+ * @param model - AI model name
+ * @returns The inference result
+ */
+async function makeInferenceRequest(
+  broker: any,
+  endpoint: string,
+  headers: Record<string, string>,
+  content: string,
+  model: string,
+): Promise<InferenceResult> {
+  const response = await fetch(`${endpoint}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: JSON.stringify({ messages: [{ role: "system", content }], model }),
+  });
+  return await response.json();
+}
+
+/**
+ * Gets fresh request headers for each attempt
+ * @param broker - The ZG Compute Broker instance
+ * @param providerAddress - Address of the inference provider
+ * @param content - Message content
+ * @returns Request headers
+ */
+async function getNewHeaders(
+  broker: any,
+  providerAddress: string,
+  content: string,
+): Promise<Record<string, string>> {
+  return await broker.inference.getRequestHeaders(providerAddress, content);
 }

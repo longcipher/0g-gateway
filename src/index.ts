@@ -18,6 +18,8 @@ async function main() {
       privateKey: config.privateKey,
       rpcUrl: config.rpcUrl,
       initialBalance: config.initialBalance,
+      providerAddress: config.providerAddress,
+      maxRetries: config.maxRetries,
     });
 
     logger.info("0G OpenAI Gateway initialized successfully");
@@ -28,6 +30,14 @@ async function main() {
 
     // Health check endpoint
     app.get("/health", (c) => c.json({ status: "ok" }));
+
+    app.routes.forEach((route) => {
+      logger.info(`Route: ${route.method} ${route.path}`, {
+        method: route.method,
+        path: route.path,
+      });
+    });
+    logger.info("All routes registered successfully");
 
     // Start the server
     const port = config.port;

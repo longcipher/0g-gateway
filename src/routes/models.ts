@@ -11,7 +11,8 @@ export function modelsRouter(gateway: ZeroGOpenAIGateway): Hono {
     try {
       log.info("Received models list request");
 
-      const models = await gateway.getModels();
+      // convert gateway.model: string to models: array of string
+      const models = gateway.getModels();
       log.info({ count: models.length }, "Retrieved models");
 
       return c.json({
