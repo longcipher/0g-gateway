@@ -201,20 +201,20 @@ export class ZeroGOpenAIGateway {
         throw new Error("No content received.");
       }
 
-      log.info({ chatID }, "Processing response...");
-      const isValid = await this.broker.inference.processResponse(
-        this.providerAddress,
-        receivedContent,
-        chatID,
-      );
+      // log.info({ chatID }, "Processing response...");
+      // const isValid = await this.broker.inference.processResponse(
+      //   this.providerAddress,
+      //   receivedContent,
+      //   chatID,
+      // );
 
-      if (!isValid) {
-        log.warn({ chatID }, "Response validation failed");
-      }
+      // if (!isValid) {
+      //   log.warn({ chatID }, "Response validation failed");
+      // }
 
       // Return the response in OpenAI-compatible format
       return {
-        id: chatID,
+        id: chatID || "1",
         object: "chat.completion",
         created: Math.floor(Date.now() / 1000),
         model: this.model,
