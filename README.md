@@ -2,6 +2,8 @@
 
 0G Gateway is a OpenAI compatible API gateway connecting 0G Serving Broker.
 
+**Deployed Gateway Endpoint**: `http://0g-gateway.longcipher.com:3000/v1`
+
 ## Project Description
 
 Directly interfacing with underlying AI infrastructure (like the 0G Serving Broker) often involves complex wallet authentication, gas fee management, and other operations. This significantly increases the barrier to entry for developers and hinders the widespread adoption of AI applications. Existing OpenAI-compatible applications face considerable rework to migrate to decentralized, high-performance 0G Serving Broker services.
@@ -12,9 +14,9 @@ Directly interfacing with underlying AI infrastructure (like the 0G Serving Brok
 
 * OpenAI-Compatible RESTful API: Fully compatible with OpenAI API interfaces, enabling seamless integration without any code modifications to existing applications.
 
-* Zero-Authentication Experience: Simplifies the user authentication process by integrating @0glabs/0g-serving-broker, eliminating the need for wallets and gas fees to utilize AI services.
+* Zero-Authentication Experience: Simplifies the user authentication process by integrating `@0glabs/0g-serving-broker`, eliminating the need for wallets and gas fees to utilize AI services.
 
-* High-Performance Proxy: Optimizes the request forwarding process to ensure low latency and high throughput, improving the response speed of AI applications.
+* High-Performance Proxy: Use bun as node runtime, optimizes the request forwarding process to ensure low latency and high throughput, improving the response speed of AI applications.
 
 ## Future Vision
 
@@ -25,12 +27,21 @@ Directly interfacing with underlying AI infrastructure (like the 0G Serving Brok
 ## Run
 
 To install dependencies:
+
 ```sh
 bun install
 ```
 
 To run:
+
 ```sh
-bun run dev # for dev
-bun run prod # for prod
+bun dev # for dev
+bun prod # for prod
+```
+
+To test:
+
+```sh
+cd openai-chat
+uv run openai-chat
 ```
