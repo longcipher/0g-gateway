@@ -45,3 +45,10 @@ To test:
 cd openai-chat
 uv run openai-chat
 ```
+
+## Use docker
+
+```sh
+docker build -t 0g-gateway .
+docker run -p 3000:3000 -e PRIVATE_KEY="<your_private_key>" 0g-gateway
+```
