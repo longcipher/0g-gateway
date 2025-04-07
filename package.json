@@ -6,7 +6,8 @@
     "lint": "biome lint",
     "lint:fix": "biome lint --fix",
     "format": "biome format",
-    "format:fix": "biome format --fix"
+    "format:fix": "biome format --fix",
+    "check": "biome check ."
   },
   "dependencies": {
     "@0glabs/0g-serving-broker": "^2.0.0",
