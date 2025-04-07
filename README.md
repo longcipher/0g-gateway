@@ -2,7 +2,10 @@
 
 0G Gateway is a OpenAI compatible API gateway connecting 0G Serving Broker.
 
-**Deployed Gateway Endpoint**: `http://0g-gateway.longcipher.com:3000/v1`
+**Deployed VPS Endpoint**: `http://0g-gateway.longcipher.com:3000/v1`
+**Deployed Phala Cloud Endpoint**: `https://176f7ae0891796d17e505edcb4a9a5177bd59b4b-3000.dstack-prod5.phala.network/v1`
+
+Check the `/health` response to see if the service is running properly.
 
 ## Project Description
 
