@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { logger as pinoLogger } from "./logger";
 import { config } from "./config";
 import { ZeroGOpenAIGateway } from "./gateway";
+import { logger as pinoLogger } from "./logger";
 import { chatCompletionsRouter } from "./routes/chat-completions";
 import { modelsRouter } from "./routes/models";
 
