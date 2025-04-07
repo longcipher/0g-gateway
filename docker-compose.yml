@@ -1,0 +1,10 @@
+services:
+  app:
+    image: ghcr.io/longcipher/0g-gateway:latest
+    container_name: app
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/run/tappd.sock:/var/run/tappd.sock
+    environment:
+      - PRIVATE_KEY=${PRIVATE_KEY}
