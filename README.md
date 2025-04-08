@@ -61,3 +61,11 @@ uv run openai-chat
 docker build -t 0g-gateway .
 docker run -p 3000:3000 -e PRIVATE_KEY="<your_private_key>" 0g-gateway
 ```
+
+## Slide
+
+* <https://gamma.app/docs/0g-Gateway-AI-Infra-for-0g-ivskdv2yrj5e2ae>
+
+## Demo
+
+* <https://youtu.be/t0R2synwlHk>
